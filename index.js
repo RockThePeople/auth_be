@@ -14,7 +14,7 @@ app.use(bodyParser.json());
 //admin keypair
 const keypair_1 = {
     address: '0x9021361C5226099AA99370DfeD181c9E31469d3B',
-    privateKey: '0x1de50334b47bc59027ecb6450637c333a57566941e29e51859c030de1261662b',
+    privateKey: '',
     publicKey: '0x0361e0984afc0e6dbb76a2fc2f7f1e86d63613f42ce032a8e26a812c82bd9bc1e3',
     identifier: '0x0361e0984afc0e6dbb76a2fc2f7f1e86d63613f42ce032a8e26a812c82bd9bc1e3'
 }
