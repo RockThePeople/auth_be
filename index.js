@@ -73,7 +73,7 @@ app.post('/showMyDID', async (req, res) => {
     const resData = await showMyDID(userAccount);
     console.log(resData);
     if (resData) {
-        res.status(200).send(resData);
+        res.status(200).send(resData[0].did);
     } else {
         res.status(200).send({ msg: "DID 발급이 수락되지 않음" });
     }
@@ -99,7 +99,7 @@ async function insertIntoGeneratedDID(account) {
     try {
         const generatedDID = await pool.query(query1);
         await deleteFromrequests(account);
-        return generatedDID;
+        return did;
     } catch (error) {
         console.error('Error : ', error);
     }
@@ -111,9 +111,11 @@ async function insertIntoGeneratedDID(account) {
 // @admin 계정 확인, DID 생성 API
 app.post('/approveRequest', async (req, res) => {
     const account = req.body.account;
+	console.log("Request from : "+account);
+
     try {
         const did = await insertIntoGeneratedDID(account);
-        res.status(200).send({ did: did });
+        res.status(200).send(did);
     } catch (error) {
         console.error('Error:', error);
         res.status(500).send('Internal Server Error');
@@ -125,19 +127,19 @@ async function showRequestList(account) {
     const pool = mysql.createPool(config);
     const query = `SELECT role FROM accounts where account = '${account}';`
     const [rows] = await pool.query(query);
-    console.log(rows);
-    if (rows.length == 0) return null;
+    if (rows.length == 0) return false;
     if (rows[0].role == 'admin') {
         const query1 = `SELECT * FROM requests`;
         const [rows] = await pool.query(query1);
         return rows;
     }
-    return null;
+    return false;
 }
 
 // @admin. 요청 목록 조회 API
 app.post('/requestList', async (req, res) => {
     const userAccount = req.body.account;
+	console.log("Request from : "+userAccount);
     const resData = await showRequestList(userAccount);
     console.log(resData);
     if (resData) {
@@ -160,6 +162,10 @@ app.post('/didrequest', async (req, res) => {
     const userEmail = req.body.email;
     const userPosition = req.body.position;
     const userName = req.body.name;
+	console.log("Request from : "+userAccount);
+	if(userAccount.length < 40){
+		res.status(200).send(null);
+	}
     const resData = await appendOnRequestList(userName, userAccount, userEmail, userPosition);
     console.log(resData);
     if (resData) {
@@ -193,9 +199,12 @@ app.post('/didrequest', async (req, res) => {
     //     });
 })
 
+app.get('/api', (req, res) => {
+  res.json({ message: 'Hello from the backend!' });
+});
 
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
-    console.log('server is running on 8080');
+    console.log(`server is running on ${PORT}`);
 });
