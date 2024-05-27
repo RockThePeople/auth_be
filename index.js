@@ -74,7 +74,7 @@ app.post('/showDIDList', async (req, res) => {
 // @admin 요청 승인 시, 요청 목록에서 삭제
 async function deleteFromRequests(account) {
     const pool = mysql.createPool(config);
-    const query = `DELETE FROM Requests WHERE account = ?`;
+    const query = `DELETE FROM requests WHERE account = ?`;
     const [result] = await pool.query(query, [account]);
     return result;
 }
@@ -82,7 +82,7 @@ async function deleteFromRequests(account) {
 // @admin 승인된 계정에 따른 DID 생성 후 집어넣기
 async function insertIntoGeneratedDID(account) {
     const pool = mysql.createPool(config);
-    const query = `SELECT * FROM Requests WHERE account = '${account}';`;
+    const query = `SELECT * FROM requests WHERE account = '${account}';`;
     const [result] = await pool.query(query);
     const did = await ethrdid.signJWT({ claims: { name: result[0].name, position: result[0].position, Email: result[0].email, account: result[0].account } });
     console.log("generated! : ", did);
@@ -116,7 +116,7 @@ async function showRequestList(account) {
     console.log(rows);
     if(rows.length == 0) return null;
     if (rows[0].role == 'admin') {
-        const query1 = `SELECT * FROM Requests`;
+        const query1 = `SELECT * FROM requests`;
         const [rows] = await pool.query(query1);
         return rows;
     }
@@ -137,7 +137,7 @@ app.post('/requestList', async (req, res) => {
 
 async function appendOnRequestList(name, account, email, position) {
     const pool = mysql.createPool(config);
-    const query = `INSERT IGNORE INTO Requests (account, name, position, email, timestamp) 
+    const query = `INSERT IGNORE INTO requests (account, name, position, email, timestamp) 
                     VALUES ('${account}', '${name}', '${position}', '${email}', CURRENT_TIMESTAMP());`
     const [rows] = await pool.query(query);
     return rows;
@@ -156,48 +156,10 @@ app.post('/didrequest', async (req, res) => {
     else {
         res.status(200).send(null);
     }
-    // const did = async () => {
-    //     console.log("Email : " + userEmail);
-    //     console.log(ethrdid);
-    //var did = await ethrdid.signJWT({ claims: { name: userName, account: userAccount, Email: userEmail, position: userPosition } });
-
-    // console.log("DID : " + did);
-    // const splitDID = did.split(".");
-    // var finalDID = [];
-    // for (var i = 0; i < splitDID.length; i++) {
-    //     finalDID.push(splitDID[i]);
-    // }
-    // console.log("SPLITED DID : " + finalDID);
-
-    // }
-    // did()
-    //     .then(returnedDID => {
-    //         const did = JSON.stringify(returnedDID);
-    //         res.status(200).send(did);
-    //     })
-    //     .catch(error => {
-    //         console.error(error);
-    //         res.status(500).send("Error generating DID");
-    //     });
 })
 
+const PORT = process.env.PORT || 3000;
 
-app.listen(8080, () => {
+app.listen(PORT, () => {
     console.log('server is running on 8080');
 });
-
-
-
-// app.post('/newProduct', async (req, res) => {
-//     const sellerId = req.body.sellerId;
-//     const newName = req.body.newName;
-//     const newPrice = req.body.newPrice;
-//     const newCategory = req.body.newCategory;
-//     const resData = await newProduct(sellerId, newName, newPrice, newCategory);
-//     if (resData) {
-//         console.log(resData);
-//         res.status(200).send(resData);
-//     } else {
-//         res.status(200).send("wrong");
-//     }
-// })
