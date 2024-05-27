@@ -3,8 +3,8 @@ const cors = require('cors');
 const app = express();
 const bodyParser = require('body-parser');
 const EthrDID = require('ethr-did');
-const jose = require('jose');
-const nodejose = require('node-jose');
+// const jose = require('jose');
+// const nodejose = require('node-jose');
 const mysql = require('mysql2/promise');
 const config = require('./config.js');
 
@@ -21,35 +21,44 @@ const keypair_1 = {
 const ethrdid = new EthrDID.EthrDID({ ...keypair_1 });
 app.use(bodyParser.json());
 
-// @user, 생성된 DID 보여주기
-async function showDIDList(account) {
+
+// @admin 요청 승인 시, 요청 목록에서 삭제
+async function deleteDIDonDB(account) {
     const pool = mysql.createPool(config);
-    console.log(account);
-    const query = `SELECT * FROM generatedDID where account = '${account}';`
-    const [rows] = await pool.query(query);
-    console.log(rows);
-    return rows;
+    const query = `DELETE FROM generatedDID WHERE account = '${account}'`;
+    const [result] = await pool.query(query);
+    return result;
 }
 
+// @admin 계정 확인, DID 생성 API
+app.post('/deleteDIDonDB', async (req, res) => {
+    const account = req.body.account;
+    try {
+        await deleteDIDonDB(account);
+        res.status(200).send({msg : "성공적으로 삭제됨"});
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
 // @user. 생성된 DID 저장하기
-app.get('/checkbyvendingmachine', async (req, res) => {
+app.post('/vmcheck', async (req, res) => {
     const account = req.query.account;
     const pool = mysql.createPool(config);
-    if (!account) {
-        return res.status(400).json({ error: 'Account parameter is required' });
-    }
     const query = `SELECT role FROM accounts WHERE account = '${account}';`;
     const [rows] = await pool.query(query);
     if (rows.length === 0) {
-        return res.json({ result: false });
+        return res.status(200).send({ result : false });
     }
     const role = results[0].role;
     const isCompany = role === 'Company';
-    return res.json({ result: isCompany });
+    console.log(isCompany);
+    return res.status(200).send({ result: isCompany });
 });
 
 // @user, 생성된 DID 보여주기
-async function showDIDList(account) {
+async function showMyDID(account) {
     const pool = mysql.createPool(config);
     console.log(account);
     const query = `SELECT * FROM generatedDID where account = '${account}';`
@@ -59,14 +68,14 @@ async function showDIDList(account) {
 }
 
 // @user. 생성된 DID 저장하기
-app.post('/showDIDList', async (req, res) => {
+app.post('/showMyDID', async (req, res) => {
     const userAccount = req.body.account;
-    const resData = await showDIDList(userAccount);
+    const resData = await showMyDID(userAccount);
     console.log(resData);
     if (resData) {
         res.status(200).send(resData);
     } else {
-        res.status(200).send(null);
+        res.status(200).send({ msg: "DID 발급이 수락되지 않음" });
     }
 })
 
@@ -74,34 +83,37 @@ app.post('/showDIDList', async (req, res) => {
 // @admin 요청 승인 시, 요청 목록에서 삭제
 async function deleteFromRequests(account) {
     const pool = mysql.createPool(config);
-    const query = `DELETE FROM requests WHERE account = ?`;
-    const [result] = await pool.query(query, [account]);
+    const query = `DELETE FROM Requests WHERE account = '${account}'`;
+    const [result] = await pool.query(query);
     return result;
 }
 
 // @admin 승인된 계정에 따른 DID 생성 후 집어넣기
 async function insertIntoGeneratedDID(account) {
     const pool = mysql.createPool(config);
-    const query = `SELECT * FROM requests WHERE account = '${account}';`;
+    const query = `SELECT * FROM Requests WHERE account = '${account}';`;
     const [result] = await pool.query(query);
     const did = await ethrdid.signJWT({ claims: { name: result[0].name, position: result[0].position, Email: result[0].email, account: result[0].account } });
     console.log("generated! : ", did);
-    const query1 = `INSERT IGNORE INTO generatedDID (account, did) VALUES ('${account}', '${did}');`;
+    const query1 = `INSERT INTO generatedDID (account, did) VALUES ('${account}', '${did}') ON DUPLICATE KEY UPDATE did = VALUES(did)`;
     try {
-        await pool.query(query1);
+        const generatedDID = await pool.query(query1);
+        await deleteFromRequests(account);
+        return generatedDID;
     } catch (error) {
         console.error('Error : ', error);
     }
-    deleteFromRequests(account);
     return;
 }
+
+
 
 // @admin 계정 확인, DID 생성 API
 app.post('/approveRequest', async (req, res) => {
     const account = req.body.account;
     try {
-        await insertIntoGeneratedDID(account);
-        res.status(200).send({ message: '승인이 정상적으로 이뤄졌습니다.' });
+        const did = await insertIntoGeneratedDID(account);
+        res.status(200).send({ did: did });
     } catch (error) {
         console.error('Error:', error);
         res.status(500).send('Internal Server Error');
@@ -114,9 +126,9 @@ async function showRequestList(account) {
     const query = `SELECT role FROM accounts where account = '${account}';`
     const [rows] = await pool.query(query);
     console.log(rows);
-    if(rows.length == 0) return null;
+    if (rows.length == 0) return null;
     if (rows[0].role == 'admin') {
-        const query1 = `SELECT * FROM requests`;
+        const query1 = `SELECT * FROM Requests`;
         const [rows] = await pool.query(query1);
         return rows;
     }
@@ -131,13 +143,13 @@ app.post('/requestList', async (req, res) => {
     if (resData) {
         res.status(200).send(resData);
     } else {
-        res.status(200).send({msg : "관리자 계정이 아닙니다"});
+        res.status(200).send({ msg: "관리자 계정이 아닙니다" });
     }
 })
 
 async function appendOnRequestList(name, account, email, position) {
     const pool = mysql.createPool(config);
-    const query = `INSERT IGNORE INTO requests (account, name, position, email, timestamp) 
+    const query = `INSERT IGNORE INTO Requests (account, name, position, email, timestamp) 
                     VALUES ('${account}', '${name}', '${position}', '${email}', CURRENT_TIMESTAMP());`
     const [rows] = await pool.query(query);
     return rows;
@@ -156,7 +168,31 @@ app.post('/didrequest', async (req, res) => {
     else {
         res.status(200).send(null);
     }
+    // const did = async () => {
+    //     console.log("Email : " + userEmail);
+    //     console.log(ethrdid);
+    //var did = await ethrdid.signJWT({ claims: { name: userName, account: userAccount, Email: userEmail, position: userPosition } });
+
+    // console.log("DID : " + did);
+    // const splitDID = did.split(".");
+    // var finalDID = [];
+    // for (var i = 0; i < splitDID.length; i++) {
+    //     finalDID.push(splitDID[i]);
+    // }
+    // console.log("SPLITED DID : " + finalDID);
+
+    // }
+    // did()
+    //     .then(returnedDID => {
+    //         const did = JSON.stringify(returnedDID);
+    //         res.status(200).send(did);
+    //     })
+    //     .catch(error => {
+    //         console.error(error);
+    //         res.status(500).send("Error generating DID");
+    //     });
 })
+
 
 const PORT = process.env.PORT || 3000;
 
