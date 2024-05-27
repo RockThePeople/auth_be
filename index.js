@@ -81,9 +81,9 @@ app.post('/showMyDID', async (req, res) => {
 
 
 // @admin 요청 승인 시, 요청 목록에서 삭제
-async function deleteFromRequests(account) {
+async function deleteFromrequests(account) {
     const pool = mysql.createPool(config);
-    const query = `DELETE FROM Requests WHERE account = '${account}'`;
+    const query = `DELETE FROM requests WHERE account = '${account}'`;
     const [result] = await pool.query(query);
     return result;
 }
@@ -91,14 +91,14 @@ async function deleteFromRequests(account) {
 // @admin 승인된 계정에 따른 DID 생성 후 집어넣기
 async function insertIntoGeneratedDID(account) {
     const pool = mysql.createPool(config);
-    const query = `SELECT * FROM Requests WHERE account = '${account}';`;
+    const query = `SELECT * FROM requests WHERE account = '${account}';`;
     const [result] = await pool.query(query);
     const did = await ethrdid.signJWT({ claims: { name: result[0].name, position: result[0].position, Email: result[0].email, account: result[0].account } });
     console.log("generated! : ", did);
     const query1 = `INSERT INTO generatedDID (account, did) VALUES ('${account}', '${did}') ON DUPLICATE KEY UPDATE did = VALUES(did)`;
     try {
         const generatedDID = await pool.query(query1);
-        await deleteFromRequests(account);
+        await deleteFromrequests(account);
         return generatedDID;
     } catch (error) {
         console.error('Error : ', error);
@@ -128,7 +128,7 @@ async function showRequestList(account) {
     console.log(rows);
     if (rows.length == 0) return null;
     if (rows[0].role == 'admin') {
-        const query1 = `SELECT * FROM Requests`;
+        const query1 = `SELECT * FROM requests`;
         const [rows] = await pool.query(query1);
         return rows;
     }
@@ -149,7 +149,7 @@ app.post('/requestList', async (req, res) => {
 
 async function appendOnRequestList(name, account, email, position) {
     const pool = mysql.createPool(config);
-    const query = `INSERT IGNORE INTO Requests (account, name, position, email, timestamp) 
+    const query = `INSERT IGNORE INTO requests (account, name, position, email, timestamp) 
                     VALUES ('${account}', '${name}', '${position}', '${email}', CURRENT_TIMESTAMP());`
     const [rows] = await pool.query(query);
     return rows;
@@ -194,7 +194,7 @@ app.post('/didrequest', async (req, res) => {
 })
 
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
     console.log('server is running on 8080');
